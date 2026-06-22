@@ -1,7 +1,4 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "chip8.h"
 
 //constants used in the program
 enum {
@@ -17,15 +14,15 @@ enum {
 uint16_t opcode;
 uint8_t registers[16];
 uint8_t memory[4096];
-uint16_t index;
+uint16_t I;
 uint16_t pc;
 uint16_t stack[16];
 uint8_t sp;
 uint8_t delayTimer;
 uint8_t soundTimer;
 uint8_t keypad[16];
-uint32_t video[64][32];
-uint16_t opcode;
+uint32_t video[32][64];
+bool drawFlag = false;
 
 uint8_t fontset[FONTSET_SIZE] =
 {
@@ -51,12 +48,11 @@ void draw(uint8_t xposition, uint8_t yposition, uint8_t numberOfBytes) {
 
     registers[0xF] = 0;
     for(int i = 0; i < numberOfBytes; i++) {
-        uint8_t sprite = memory[index + i];
+        uint8_t sprite = memory[I + i];
         
-        for(int bitindex = 0; bitindex < 8; i++) {
-            uint8_t spritepixel = (sprite >> bitindex) & 0x1;
-            uint32_t* pixel = &video[(xposition + bitindex) % 64][(yposition + (7 - bitindex)) % 32];
-
+        for(int bitI = 0; bitI < 8; bitI++) {
+            uint8_t spritepixel = (sprite >> bitI) & 0x1;
+            uint32_t* pixel = &video[xposition + (7 - bitI)][(yposition + i) % 32];
             if(spritepixel == 1 && *pixel == 1) registers[0xF] = 1;
 
             *pixel = *pixel ^ spritepixel;
@@ -69,14 +65,14 @@ int randomnumber() {
 }
 
 void chip8_loadgame(char const* filename) {
-    FILE* fgame = fopen(filename, "r");
+    FILE* fgame = fopen(filename, "rb");
 
-    if(fgame) {
+    if(!fgame) {
         fprintf(stderr, "Could not open the file");
         exit(EXIT_FAILURE);
     }
 
-    fread(&memory[200], 1, 0x1000 - 0x200, fgame);
+    fread(&memory[0x200], 1, 0x1000 - 0x200, fgame);
 
     fclose(fgame);
 }
@@ -90,15 +86,19 @@ void chip8_init() {
     for(int i = 0; i < FONTSET_SIZE; i++) {
         memory[FONTSET_ADDRESS + i] = fontset[i];
     }
+
+    drawFlag = true;
+    delayTimer = 0;
+    soundTimer = 0;
 }
-void chip8_execute_intruction() {
+void chip8_execute_instruction() {
 
     int i;
     uint16_t NNN;
     uint8_t NN;
     uint8_t x, y, N;
 
-    opcode = (int) memory[pc] << 8 | (int) memory[pc];
+    opcode = (int) memory[pc] << 8 | (int) memory[pc + 1];
     x = (opcode >> 8) & 0x000F;
     y = (opcode >> 4) & 0x000F;
     N = opcode & 0x000F;
@@ -110,6 +110,7 @@ void chip8_execute_intruction() {
             switch (NN) {
                 case 0xE0:
                     memset(video, 0, sizeof(video));
+                    drawFlag = true;
                     pc += 2;
                     break;
                 case 0xEE:
@@ -119,6 +120,7 @@ void chip8_execute_intruction() {
                 default:
                     break;
             }
+            break;
         case 0x1000: 
             pc = NNN;
             break;
@@ -205,12 +207,11 @@ void chip8_execute_intruction() {
             }
             break;
         case 0xA000:
-            index = NNN;
+            I = NNN;
             pc += 2;
             break;
         case 0xB000:
-            index = NNN + registers[0];
-            pc += 2;
+            pc = NNN + registers[0];
             break;
         case 0xC000:
             registers[x] = randomnumber() & NN;
@@ -218,6 +219,7 @@ void chip8_execute_intruction() {
             break;
         case 0xD000:
             draw(registers[x], registers[y], N);
+            drawFlag = true;
             pc += 2;
             break;
         case 0xE000:
@@ -230,6 +232,7 @@ void chip8_execute_intruction() {
                     break;
                 default:
             }
+            break;
         case 0xF000:
             switch (NN) {
                 case 0x07:
@@ -256,28 +259,28 @@ void chip8_execute_intruction() {
                     pc += 2;
                     break;
                 case 0x1E:
-                    index += registers[x];
+                    I += registers[x];
                     pc += 2;
                     break;
                 case 0x29:
-                    index = 5 * registers[x];
+                    I = 5 * registers[x];
                     pc += 2;
                     break;
                 case 0x33:
-                    memory[index] = (registers[x] % 1000) / 100;
-                    memory[index +1] = (registers[x] % 100) / 10;
-                    memory[index + 2] = (registers[x] % 10);
+                    memory[I] = (registers[x] % 1000) / 100;
+                    memory[I +1] = (registers[x] % 100) / 10;
+                    memory[I + 2] = (registers[x] % 10);
                     pc += 2;
                     break;
                 case 0x55:
-                    for(int i = 0; i < x; i++) {
-                        memory[index + i] = registers[i];
+                    for(int i = 0; i <= x; i++) {
+                        memory[I + i] = registers[i];
                     }
                     pc += 2;
                     break;
                 case 0x65:
-                    for(int i = 0; i < x; i++) {
-                        registers[i] = memory[index + i];
+                    for(int i = 0; i <= x; i++) {
+                        registers[i] = memory[I + i];
                     }
                     pc += 2;
                     break;
