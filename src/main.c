@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
 #include "chip8.h"
 
-#define CLOCK_HZ 60
+#define CLOCK_HZ 30
 #define CLOCK_RATE_MS ((int) ((1.0 / CLOCK_HZ) * 1000 + 0.5))
 
 struct Game {
@@ -81,10 +81,12 @@ int main(int argc, char* argv[]) {
                     if(keyPressed(e) != 0xff) {
                         keypad[keyPressed(e)] = 1;
                     }
+                    break;
                 case SDL_KEYUP:
                     if(keyPressed(e) != 0xff) {
                         keypad[keyPressed(e)] = 0;
                     }
+                    break;
             }
 
         }

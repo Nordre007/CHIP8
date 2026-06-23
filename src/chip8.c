@@ -52,7 +52,7 @@ void draw(uint8_t xposition, uint8_t yposition, uint8_t numberOfBytes) {
         
         for(int bitI = 0; bitI < 8; bitI++) {
             uint8_t spritepixel = (sprite >> bitI) & 0x1;
-            uint32_t* pixel = &video[xposition + (7 - bitI)][(yposition + i) % 32];
+            uint32_t* pixel = &video[(yposition + i) % 32][(xposition + (7 - bitI)) % 64];
             if(spritepixel == 1 && *pixel == 1) registers[0xF] = 1;
 
             *pixel = *pixel ^ spritepixel;
@@ -92,13 +92,14 @@ void chip8_init() {
     soundTimer = 0;
 }
 void chip8_execute_instruction() {
-
+    printf("PC: %04X opcode: %04X\n", pc, opcode);
     int i;
     uint16_t NNN;
     uint8_t NN;
     uint8_t x, y, N;
 
-    opcode = (int) memory[pc] << 8 | (int) memory[pc + 1];
+    opcode = memory[pc] << 8 | memory[pc + 1];
+    printf("PC: %04X opcode: %04X I: %04X\n", pc, opcode, I);
     x = (opcode >> 8) & 0x000F;
     y = (opcode >> 4) & 0x000F;
     N = opcode & 0x000F;
@@ -125,8 +126,7 @@ void chip8_execute_instruction() {
             pc = NNN;
             break;
         case 0x2000: 
-            ++sp;
-            stack[sp] = pc;
+            stack[sp++] = pc + 2;
             pc = NNN;
             break;
         case 0x3000:
@@ -200,10 +200,13 @@ void chip8_execute_instruction() {
             pc += 2;
             break;
         case 0x9000:
-            if(registers[x] != registers[y]) {
-                pc += 4;
-            } else {
-                pc += 2;
+            switch (N) {
+                case 0x0: 
+                    if(registers[x] != registers[y]) {
+                        pc += 4;
+                    } else {
+                        pc += 2;
+                    }
             }
             break;
         case 0xA000:
@@ -237,19 +240,17 @@ void chip8_execute_instruction() {
             switch (NN) {
                 case 0x07:
                     registers[x] = delayTimer;
+                    pc += 2;
                     break;
                 case 0x0A:
-                    while(1) {
                         for(int i = 0; i < 16; i++) {
                             if(keypad[i]) {
                                 registers[x] = i;
-                                goto got_key_press;
+                                pc += 2;
+                                return;
                             }
                         }
-                    }
-                    got_key_press:
-                    pc += 2;
-                    break;
+                    return;
                 case 0x15:
                     delayTimer = registers[x];
                     pc += 2;
